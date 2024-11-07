@@ -1,0 +1,8 @@
+pycache/
+*.py[cod]
+*.pyo
+*.pyd
+*.db
+*.sqlite3
+.venv/
+.env
