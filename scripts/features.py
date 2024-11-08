@@ -187,14 +187,14 @@ def plot_forecasts_vs_actual(results, asset_name):
     
     if arima_forecast.size > 0:
         plt.plot(arima_forecast, label='ARIMA Forecast', color='blue')
-    plt.plot(sarima_forecast, label='SARIMA Forecast', color='green')
-    plt.plot(lstm_forecast, label='LSTM Forecast', color='red')
+        plt.plot(sarima_forecast, label='SARIMA Forecast', color='green')
+        plt.plot(lstm_forecast, label='LSTM Forecast', color='red')
 
-    plt.title(f'Forecast vs Actual for {asset_name}')
-    plt.xlabel('Time')
-    plt.ylabel('Price')
-    plt.legend()
-    plt.show()
+        plt.title(f'Forecast vs Actual for {asset_name}')
+        plt.xlabel('Time')
+        plt.ylabel('Price')
+        plt.legend()
+        plt.show()
 
 def summarize_model_performance(results, asset_name):
     metrics = results['metrics']
@@ -208,13 +208,8 @@ def summarize_model_performance(results, asset_name):
     best_model = min(metrics, key=lambda x: metrics[x][2] if metrics[x][2] is not None else float('inf'))
     print(f"\nBest Model for {asset_name} based on MAPE: {best_model}\n")
 
-def task_3(all_data):
+def forecast(all_data,results):
     for asset_name, asset_data in all_data.items():
-        # Run forecasting for each asset
-        results = run_forecasting(asset_data['Adj Close'], asset_name)
-        
-        # Plot forecasts vs. actual
         plot_forecasts_vs_actual(results, asset_name)
         
-        # Summarize model performance
         summarize_model_performance(results, asset_name)
