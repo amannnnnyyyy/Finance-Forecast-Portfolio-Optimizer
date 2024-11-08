@@ -152,3 +152,69 @@ def run_forecasting(asset_data, asset_name,seasonal_order=(1, 1, 1, 12)):
     }
     
     plot_metrics(metrics, f'Model Performance Metrics for {asset_name}')
+
+    results = {
+        'arima_forecast': arima_forecast,
+        'sarima_forecast': sarima_forecast,
+        'lstm_forecast': lstm_forecast,
+        'test_data': test.values,
+        'metrics': {
+            'ARIMA': arima_metrics,
+            'SARIMA': sarima_metrics,
+            'LSTM': lstm_metrics
+        },
+        'models': {
+            'ARIMA': arima_model,
+            'SARIMA': sarima_fit,
+            'LSTM': lstm_model
+        }
+    }
+
+    return results
+
+
+
+def plot_forecasts_vs_actual(results, asset_name):
+    # Extract data
+    test_data = results['test_data']
+    arima_forecast = results['arima_forecast']
+    sarima_forecast = results['sarima_forecast']
+    lstm_forecast = results['lstm_forecast']
+    
+    # Plot actual vs. forecasted values for each model
+    plt.figure(figsize=(14, 8))
+    plt.plot(test_data, label='Actual', color='black', linestyle='--')
+    
+    if arima_forecast.size > 0:
+        plt.plot(arima_forecast, label='ARIMA Forecast', color='blue')
+    plt.plot(sarima_forecast, label='SARIMA Forecast', color='green')
+    plt.plot(lstm_forecast, label='LSTM Forecast', color='red')
+
+    plt.title(f'Forecast vs Actual for {asset_name}')
+    plt.xlabel('Time')
+    plt.ylabel('Price')
+    plt.legend()
+    plt.show()
+
+def summarize_model_performance(results, asset_name):
+    metrics = results['metrics']
+    
+    print(f"\nSummary of Model Performance for {asset_name}:")
+    for model, metric in metrics.items():
+        mae, rmse, mape = metric
+        print(f"{model} - MAE: {mae:.4f}, RMSE: {rmse:.4f}, MAPE: {mape:.2f}%")
+
+    # Determine best model based on lowest MAPE
+    best_model = min(metrics, key=lambda x: metrics[x][2] if metrics[x][2] is not None else float('inf'))
+    print(f"\nBest Model for {asset_name} based on MAPE: {best_model}\n")
+
+def task_3(all_data):
+    for asset_name, asset_data in all_data.items():
+        # Run forecasting for each asset
+        results = run_forecasting(asset_data['Adj Close'], asset_name)
+        
+        # Plot forecasts vs. actual
+        plot_forecasts_vs_actual(results, asset_name)
+        
+        # Summarize model performance
+        summarize_model_performance(results, asset_name)
