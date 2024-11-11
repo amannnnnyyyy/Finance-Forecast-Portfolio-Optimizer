@@ -183,11 +183,9 @@ def plot_forecasts_vs_actual(results, asset_name):
     lstm_forecast = results['lstm_forecast']
     
     asset_name = asset_name.reset_index()
-    # Ensure that the asset_name contains the Date column (assuming asset_name is a DataFrame with Date column)
-    test_data_dates = asset_name['Date']  # This is where the Date column comes from
+    test_data_dates = asset_name['Date']
     asset_name = asset_name.set_index('Date')
 
-    # Plot actual vs. forecasted values for each model
     plt.figure(figsize=(14, 8))
     plt.plot(test_data_dates, asset_name['Adj Close'], label='Actual', color='black', linestyle='--')
 
@@ -214,7 +212,6 @@ def summarize_model_performance(results, asset_name):
         mae, rmse, mape = metric
         print(f"{model} - MAE: {mae:.4f}, RMSE: {rmse:.4f}, MAPE: {mape:.2f}%")
 
-    # Determine best model based on lowest MAPE
     best_model = min(metrics, key=lambda x: metrics[x][2] if metrics[x][2] is not None else float('inf'))
     print(f"\nBest Model for {asset_name} based on MAPE: {best_model}\n")
 
