@@ -189,7 +189,7 @@ def plot_forecasts_vs_actual(results, asset_name,name):
     lstm_metrics = calculate_metrics(test_data, lstm_forecast)
 
     # Reset index of the asset data to use Date for x-axis
-    asset_data = asset_name  # Assuming 'asset_data' contains the full historical data including the 'Adj Close' column
+    asset_data = asset_name 
     asset_data = asset_data.reset_index()
     test_data_dates = asset_data['Date']
     
