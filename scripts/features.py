@@ -8,6 +8,7 @@ from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import LSTM, Dense
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 
 def calc_daily_return(all_data):
     for asset, data in all_data.items():
@@ -181,19 +182,28 @@ def plot_forecasts_vs_actual(results, asset_name):
     sarima_forecast = results['sarima_forecast']
     lstm_forecast = results['lstm_forecast']
     
+    asset_name = asset_name.reset_index()
+    # Ensure that the asset_name contains the Date column (assuming asset_name is a DataFrame with Date column)
+    test_data_dates = asset_name['Date']  # This is where the Date column comes from
+    asset_name = asset_name.set_index('Date')
+
     # Plot actual vs. forecasted values for each model
     plt.figure(figsize=(14, 8))
-    plt.plot(test_data, label='Actual', color='black', linestyle='--')
-    
+    plt.plot(test_data_dates, asset_name['Adj Close'], label='Actual', color='black', linestyle='--')
+
     if arima_forecast.size > 0:
-        plt.plot(arima_forecast, label='ARIMA Forecast', color='blue')
-        plt.plot(sarima_forecast, label='SARIMA Forecast', color='green')
-        plt.plot(lstm_forecast, label='LSTM Forecast', color='red')
+        forecast_dates = pd.date_range(start=test_data_dates.iloc[-1], periods=len(arima_forecast) + 1, freq='D')[1:]
+
+        plt.plot(forecast_dates, arima_forecast, label='ARIMA Forecast', color='blue')
+        plt.plot(forecast_dates, sarima_forecast, label='SARIMA Forecast', color='green')
+        plt.plot(forecast_dates, lstm_forecast, label='LSTM Forecast', color='red')
 
         plt.title(f'Forecast vs Actual for {asset_name}')
-        plt.xlabel('Time')
+        plt.xlabel('Date')
         plt.ylabel('Price')
         plt.legend()
+        plt.xticks(rotation=45)
+        plt.tight_layout()
         plt.show()
 
 def summarize_model_performance(results, asset_name):
@@ -208,8 +218,6 @@ def summarize_model_performance(results, asset_name):
     best_model = min(metrics, key=lambda x: metrics[x][2] if metrics[x][2] is not None else float('inf'))
     print(f"\nBest Model for {asset_name} based on MAPE: {best_model}\n")
 
-def forecast(all_data,results):
-    for asset_name, asset_data in all_data.items():
-        plot_forecasts_vs_actual(results, asset_name)
-        
-        summarize_model_performance(results, asset_name)
+def forecast(asset_name, results):
+    plot_forecasts_vs_actual(results, asset_name)
+    summarize_model_performance(results, asset_name)
