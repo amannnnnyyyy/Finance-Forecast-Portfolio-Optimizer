@@ -4,10 +4,9 @@ from statsmodels.tsa.seasonal import seasonal_decompose
 
 
 def volatility(all_data):
-    rolling_window = 20  # 20-day rolling window
+    rolling_window = 20  
 
     for asset, data in all_data.items():
-        # Calculate rolling mean and standard deviation
         data['Rolling Mean'] = data['Adj Close'].rolling(window=rolling_window).mean()
         data['Rolling Std Dev'] = data['Adj Close'].rolling(window=rolling_window).std()
 
