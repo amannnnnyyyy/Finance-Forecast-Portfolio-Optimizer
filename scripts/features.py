@@ -9,6 +9,10 @@ from tensorflow.keras.layers import LSTM, Dense
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+import scipy.optimize as sco
+import scipy.stats as stats
+
+
 
 def calc_daily_return(all_data):
     for asset, data in all_data.items():
@@ -231,3 +235,243 @@ def summarize_model_performance(results, asset_name,name):
 def forecast(asset_name, results,name):
     plot_forecasts_vs_actual(results, asset_name,name)   
     summarize_model_performance(results, asset_name,name)
+
+
+def reset_index(all_data):
+    all_data['tesla']=all_data['tesla'].reset_index()
+    all_data['bond']=all_data['bond'].reset_index()
+    all_data['spy']=all_data['spy'].reset_index()
+    return all_data
+
+def merge_data(all_data):
+    # Rename the 'Close' columns to the respective asset names
+    tsla_df = all_data['tesla'].rename(columns={'Close': 'TSLA'})
+    bnd_df = all_data['bond'].rename(columns={'Close': 'BND'})
+    spy_df = all_data['spy'].rename(columns={'Close': 'SPY'})
+
+    # Merge the DataFrames on 'Date'
+    df = tsla_df[['Date', 'TSLA']].merge(bnd_df[['Date', 'BND']], on='Date', how='outer')
+    df = df.merge(spy_df[['Date', 'SPY']], on='Date', how='outer')
+
+    # Sort by Date if needed
+    df = df.sort_values('Date').reset_index(drop=True)
+
+    return df
+
+
+def calculate_returns(df):
+    # Calculate daily returns for each asset
+    df['TSLA_daily_return'] = df['TSLA'].pct_change()
+    df['BND_daily_return'] = df['BND'].pct_change()
+    df['SPY_daily_return'] = df['SPY'].pct_change()
+
+    # Calculate the average daily return for each asset
+    avg_daily_return_tsla = df['TSLA_daily_return'].mean()
+    avg_daily_return_bnd = df['BND_daily_return'].mean()
+    avg_daily_return_spy = df['SPY_daily_return'].mean()
+
+    # Compound the average daily returns to annualize them
+    trading_days_per_year = 252  # Typically 252 trading days in a year
+
+    annual_return_tsla = (1 + avg_daily_return_tsla) ** trading_days_per_year - 1
+    annual_return_bnd = (1 + avg_daily_return_bnd) ** trading_days_per_year - 1
+    annual_return_spy = (1 + avg_daily_return_spy) ** trading_days_per_year - 1
+
+    # Display the annual returns
+    annual_returns = {
+        'TSLA': annual_return_tsla,
+        'BND': annual_return_bnd,
+        'SPY': annual_return_spy
+    }
+    return annual_returns
+
+
+def portfolio_annual_return(df):
+    weights = [0.5, 0.3, 0.2]
+    weighted_daily_return = (weights[0] * df['TSLA_daily_return'] + 
+                            weights[1] * df['BND_daily_return'] + 
+                            weights[2] * df['SPY_daily_return'])
+
+    # Calculate annualized portfolio return (assuming 252 trading days in a year)
+    portfolio_annual_return = (1 + weighted_daily_return.mean())**252 - 1
+    return portfolio_annual_return
+
+
+def optimal_portfolio_no_sharpe(expected_returns,cov_matrix,df):
+    # Define the objective function to minimize (negative return)
+    def negative_return(weights):
+        portfolio_return = np.dot(weights, expected_returns)
+        return -portfolio_return  # Maximizing raw return
+
+    # Constraints and bounds for optimization
+    constraints = {'type': 'eq', 'fun': lambda x: np.sum(x) - 1}  # Weights sum to 1
+    bounds = tuple((0, 1) for _ in range(len(expected_returns)))  # Weights between 0 and 1
+
+    # Initial guess for weights
+    initial_weights = [1 / len(expected_returns)] * len(expected_returns)
+
+    # Optimize weights to maximize portfolio return
+    optimized = sco.minimize(negative_return, initial_weights, constraints=constraints, bounds=bounds)
+    optimal_weights = optimized.x
+
+    # Calculate the weighted daily return using the optimized weights
+    weighted_daily_return = (optimal_weights[0] * df['TSLA_daily_return'] + 
+                            optimal_weights[1] * df['BND_daily_return'] + 
+                            optimal_weights[2] * df['SPY_daily_return'])
+
+    # Calculate annualized portfolio return (assuming 252 trading days in a year)
+    portfolio_annual_return = (1 + weighted_daily_return.mean())**252 - 1
+
+    # Display optimized weights and annual return
+    return optimal_weights, portfolio_annual_return
+
+
+def optimal_portfolio_sharpe(expected_returns,cov_matrix,df):
+    # Define the objective function to minimize (negative Sharpe Ratio)
+    def negative_sharpe(weights):
+        portfolio_return = np.dot(weights, expected_returns)
+        portfolio_volatility = np.sqrt(np.dot(weights.T, np.dot(cov_matrix, weights)))
+        return -portfolio_return / portfolio_volatility  # Maximizing Sharpe Ratio
+
+    # Constraints and bounds for optimization
+    constraints = {'type': 'eq', 'fun': lambda x: np.sum(x) - 1}  # Weights sum to 1
+    bounds = tuple((0, 1) for _ in range(len(expected_returns)))  # Weights between 0 and 1
+
+    # Initial guess for weights
+    initial_weights = [1 / len(expected_returns)] * len(expected_returns)
+
+    # Optimize weights
+    optimized = sco.minimize(negative_sharpe, initial_weights, constraints=constraints, bounds=bounds)
+    optimal_weights = optimized.x
+
+    # Calculate the weighted daily return using the optimized weights
+    weighted_daily_return = (optimal_weights[0] * df['TSLA_daily_return'] + 
+                            optimal_weights[1] * df['BND_daily_return'] + 
+                            optimal_weights[2] * df['SPY_daily_return'])
+
+    # Calculate annualized portfolio return (assuming 252 trading days in a year)
+    portfolio_annual_return = (1 + weighted_daily_return.mean())**252 - 1
+
+    # Display optimized weights and annual return
+    return optimal_weights, portfolio_annual_return, weighted_daily_return
+
+
+def portfolio_variance(optimal_weights,cov_matrix):
+    portfolio_variance = np.dot(optimal_weights, np.dot(cov_matrix, optimal_weights))
+
+    # Calculate portfolio volatility (standard deviation)
+    portfolio_volatility = np.sqrt(portfolio_variance) * np.sqrt(252)  # Annualize volatility
+
+    return portfolio_volatility
+
+
+
+
+def total_portfolio(df,weighted_daily_return):
+    # Drop missing values
+    df['TSLA_daily_return'].dropna(inplace=True)
+
+    average_portfolio_return = weighted_daily_return.mean()
+
+    # 2. Measure the standard deviation of portfolio returns to understand volatility
+    portfolio_volatility = weighted_daily_return.std()
+
+    # 3. Measure the potential loss in value of Tesla stock at a given confidence interval (Value at Risk - VaR)
+    try:
+        # Historical VaR approach (using the 5th percentile for 95% confidence)
+        confidence_level = 0.95
+        var_Tesla = np.percentile(df['TSLA_daily_return'], (1 - confidence_level) * 100)
+    except Exception as e:
+        # Fallback in case of errors (e.g., if not enough data)
+        var_Tesla = df['TSLA_daily_return'].mean() 
+
+    # Alternatively, using the parametric VaR approach (assuming returns are normally distributed)
+    try:
+        mean_Tesla_return = df['TSLA_daily_return'].mean()
+        std_Tesla_return = df['TSLA_daily_return'].std()
+        var_Tesla_parametric = stats.norm.ppf(1 - confidence_level) * std_Tesla_return + mean_Tesla_return
+    except Exception as e:
+        var_Tesla_parametric = df['TSLA_daily_return'].mean()  # Fallback to mean return
+
+    # 4. Calculate the Sharpe Ratio for the portfolio (assuming a risk-free rate of 0 for simplicity)
+    sharpe_ratio = average_portfolio_return / portfolio_volatility
+
+    # Annualize the average return and volatility if needed (assuming 252 trading days per year)
+    annualized_portfolio_return = (1 + average_portfolio_return)**252 - 1
+    annualized_portfolio_volatility = portfolio_volatility * np.sqrt(252)
+    annualized_sharpe_ratio = annualized_portfolio_return / annualized_portfolio_volatility
+
+    # Display the results
+    results = {
+        "Average Portfolio Return (Daily)": average_portfolio_return,
+        "Portfolio Volatility (Daily)": portfolio_volatility,
+        "Tesla VaR (95% confidence)": var_Tesla,
+        "Tesla VaR (Parametric 95% confidence)": var_Tesla_parametric,
+        "Sharpe Ratio (Daily)": sharpe_ratio,
+        "Annualized Portfolio Return": annualized_portfolio_return,
+        "Annualized Portfolio Volatility": annualized_portfolio_volatility,
+        "Annualized Sharpe Ratio": annualized_sharpe_ratio
+    }
+
+    return results, var_Tesla, sharpe_ratio, annualized_sharpe_ratio, portfolio_volatility, average_portfolio_return
+
+
+def portfolio_calculations(df):
+    mean_returns = df[['TSLA_daily_return', 'BND_daily_return', 'SPY_daily_return']].mean()
+
+    # Calculate the covariance matrix of returns
+    cov_matrix = df[['TSLA_daily_return', 'BND_daily_return', 'SPY_daily_return']].cov()
+
+    # Define the number of assets
+    num_assets = len(mean_returns)
+
+    # Function to calculate portfolio performance (return, volatility)
+    def portfolio_performance(weights, mean_returns, cov_matrix):
+        returns = np.sum(mean_returns * weights)  # Portfolio return
+        volatility = np.sqrt(np.dot(weights.T, np.dot(cov_matrix, weights)))  # Portfolio volatility
+        return returns, volatility
+
+    # Objective function: Minimize the negative Sharpe ratio
+    def negative_sharpe_ratio(weights, mean_returns, cov_matrix, risk_free_rate=0):
+        portfolio_return, portfolio_volatility = portfolio_performance(weights, mean_returns, cov_matrix)
+        return -(portfolio_return - risk_free_rate) / portfolio_volatility
+
+    # Constraints: Weights must sum to 1 (full investment)
+    def weight_constraint(weights):
+        return np.sum(weights) - 1
+
+    # Initial guess (equal distribution of weights)
+    initial_guess = np.array([1/num_assets] * num_assets)
+
+    # Bounds for each weight: between 0 and 1
+    bounds = tuple((0, 1) for asset in range(num_assets))
+
+    # Constraints: weights must sum to 1
+    constraints = ({'type': 'eq', 'fun': weight_constraint})
+
+    # Perform the optimization to maximize the Sharpe ratio
+    optimized_result = sco.minimize(negative_sharpe_ratio, initial_guess, args=(mean_returns, cov_matrix),
+                                    method='SLSQP', bounds=bounds, constraints=constraints)
+
+    # Extract the optimized weights
+    optimized_weights = optimized_result.x
+
+    # Calculate the optimized portfolio performance
+    optimized_return, optimized_volatility = portfolio_performance(optimized_weights, mean_returns, cov_matrix)
+
+    # Annualize the optimized return and volatility
+    annualized_optimized_return = (1 + optimized_return) ** 252 - 1  # Assuming 252 trading days per year
+    annualized_optimized_volatility = optimized_volatility * np.sqrt(252)
+
+    # Sharpe ratio for the optimized portfolio
+    optimized_sharpe_ratio = annualized_optimized_return / annualized_optimized_volatility
+
+    # Display results
+    optimized_results = {
+        "Optimized Portfolio Weights (TSLA, BND, SPY)": optimized_weights,
+        "Optimized Portfolio Return (Annualized)": annualized_optimized_return,
+        "Optimized Portfolio Volatility (Annualized)": annualized_optimized_volatility,
+        "Optimized Sharpe Ratio": optimized_sharpe_ratio
+    }
+
+    return optimized_results, mean_returns, optimized_weights
