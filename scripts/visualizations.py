@@ -1,6 +1,8 @@
 import matplotlib.pyplot as plt
 from scipy.stats import zscore
 from statsmodels.tsa.seasonal import seasonal_decompose
+import seaborn as sns
+import numpy as np
 
 
 def volatility(all_data):
@@ -170,3 +172,142 @@ def sharpe_plot(sharpe_values):
         plt.show()
     else:
         print("No valid Sharpe ratios to plot.")
+
+
+def correlation_returns(daily_returns):
+    # Calculate the correlation matrix
+    corr_matrix = daily_returns.corr()
+
+    # Plotting the correlation matrix heatmap
+    plt.figure(figsize=(8, 6))
+    sns.heatmap(corr_matrix, annot=True, fmt=".2f", cmap='coolwarm', square=True, cbar_kws={"shrink": .8})
+    plt.title('Correlation Matrix Heatmap')
+    plt.xticks(rotation=45)
+    plt.yticks(rotation=45)
+    plt.show()
+
+
+def covariance_returns(daily_returns):
+    # Calculate the covariance matrix
+    cov_matrix = daily_returns.cov()
+
+
+    plt.figure(figsize=(8, 6))
+    sns.heatmap(cov_matrix, annot=True, fmt=".8f", cmap='coolwarm', square=True, cbar_kws={"shrink": .8})
+    plt.title('Covariance Matrix Heatmap')
+    plt.xticks(rotation=45)
+    plt.yticks(rotation=45)
+    plt.show()
+
+
+def daily_plot_VaR(df,var_Tesla):
+    plt.figure(figsize=(10, 6))
+    plt.hist(df['TSLA_daily_return'].dropna(), bins=50, color='skyblue', edgecolor='black', alpha=0.7)
+    plt.axvline(var_Tesla, color='red', linestyle='dashed', linewidth=2, label=f'VaR (95%): {var_Tesla:.4f}')
+    plt.title("Tesla's Daily Returns Distribution with VaR at 95% Confidence")
+    plt.xlabel('Daily Return')
+    plt.ylabel('Frequency')
+    plt.legend()
+    plt.show()
+
+
+def cumulative_return_plot(cumulative_return):
+    # Plot cumulative returns
+    plt.figure(figsize=(10, 6))
+    plt.plot(cumulative_return, label="Portfolio Cumulative Return", color='blue')
+    plt.title("Portfolio Cumulative Returns Over Time")
+    plt.xlabel("Date")
+    plt.ylabel("Cumulative Return ($1 Investment)")
+    plt.legend()
+    plt.show()
+
+
+def daily_annual_sharpe_ratio(sharpe_ratios):
+    # Plot the Sharpe ratios
+    plt.figure(figsize=(8, 5))
+    plt.bar(sharpe_ratios.keys(), sharpe_ratios.values(), color=['coral', 'dodgerblue'])
+    plt.title("Comparison of Daily and Annualized Sharpe Ratios")
+    plt.ylabel("Sharpe Ratio")
+    plt.ylim(0, max(sharpe_ratios.values()) * 1.2)
+    plt.show()
+
+
+def montecarlo_simulation(df,mean_returns,cov_matrix,optimized_weights):
+    dataset_size = len(df)  # Number of rows (days) in your dataset
+    num_days = len(df)  # The number of data points (days) in the dataset
+
+    num_simulations = min(1000, int(dataset_size / 10))
+
+    simulated_portfolios = np.zeros((num_simulations, num_days))
+
+    for i in range(num_simulations):
+        # Generate random returns for each asset (TSLA, BND, SPY)
+        random_returns = np.random.multivariate_normal(mean_returns, cov_matrix, num_days)
+        
+        # Calculate the portfolio returns for each day (weighted sum of returns)
+        simulated_portfolios[i] = np.dot(random_returns, optimized_weights)
+
+    # Plot the simulated portfolio returns
+    plt.figure(figsize=(10, 6))
+    plt.plot(simulated_portfolios.T, color='blue', alpha=0.1)
+    plt.title('Monte Carlo Simulation: Simulated Portfolio Performance')
+    plt.xlabel('Days')
+    plt.ylabel('Portfolio Daily Return')
+    plt.show()
+
+    # Calculate the cumulative return for each simulation to see the total portfolio growth over time
+    cumulative_returns = np.cumsum(simulated_portfolios, axis=1)
+
+    # Plot the cumulative returns to visualize portfolio growth over time
+    plt.figure(figsize=(10, 6))
+    plt.plot(cumulative_returns.T, color='blue', alpha=0.1)
+    plt.title('Monte Carlo Simulation: Cumulative Portfolio Return')
+    plt.xlabel('Days')
+    plt.ylabel('Cumulative Portfolio Return')
+    plt.show()
+
+def cumulative_returns_indiv_assets(df, weighted_daily_return):
+    cumulative_returns = (1 + weighted_daily_return).cumprod()
+    cumulative_returns_TESLA = (1 + df['TSLA_daily_return']).cumprod()
+    cumulative_returns_BND = (1 + df['BND_daily_return']).cumprod()
+    cumulative_returns_SPY = (1 + df['SPY_daily_return']).cumprod()
+
+    # Plot cumulative returns
+    plt.figure(figsize=(10, 6))
+    plt.plot(cumulative_returns, label="Optimized Portfolio", color='blue')
+    plt.plot(cumulative_returns_TESLA, label="Tesla (TSLA)", color='red')
+    plt.plot(cumulative_returns_BND, label="Bond (BND)", color='green')
+    plt.plot(cumulative_returns_SPY, label="S&P 500 (SPY)", color='orange')
+
+    plt.title("Cumulative Returns of Portfolio and Individual Assets")
+    plt.xlabel("Days")
+    plt.ylabel("Cumulative Return")
+    plt.legend(loc="upper left")
+    plt.grid(True)
+    plt.show()
+
+def risk_return_analysis(df, mean_returns, average_portfolio_return, portfolio_volatility):
+    # Plot Risk vs Return for the assets and portfolio
+    returns = [mean_returns['TSLA_daily_return'], mean_returns['BND_daily_return'], mean_returns['SPY_daily_return'], average_portfolio_return]
+    volatility = [df['TSLA_daily_return'].std(), df['BND_daily_return'].std(), df['SPY_daily_return'].std(), portfolio_volatility]
+
+    plt.figure(figsize=(10, 6))
+
+    # Scatter plot for individual assets with separate colors and labels
+    plt.scatter(volatility[0], returns[0], color='red', label='Tesla', s=100)
+    plt.scatter(volatility[1], returns[1], color='green', label='Bond', s=100)
+    plt.scatter(volatility[2], returns[2], color='orange', label='SPY', s=100)
+
+    # Scatter plot for the optimized portfolio
+    plt.scatter(portfolio_volatility, average_portfolio_return, color='blue', label="Optimized Portfolio", marker='x', s=100)
+
+    # Add labels and legend
+    for i, txt in enumerate(['TSLA', 'BND', 'SPY', 'Portfolio']):
+        plt.annotate(txt, (volatility[i], returns[i]), textcoords="offset points", xytext=(0,10), ha='center')
+
+    plt.title("Risk vs Return Analysis")
+    plt.xlabel("Volatility (Risk)")
+    plt.ylabel("Expected Return")
+    plt.legend()
+    plt.grid(True)
+    plt.show()
